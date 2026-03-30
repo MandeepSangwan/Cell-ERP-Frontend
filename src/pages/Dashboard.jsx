@@ -1,27 +1,55 @@
-import { useState, useEffect } from 'react';
-import { Download, Users, UserCheck, CalendarDays } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Download, Users, UserCheck, CalendarDays, TrendingUp, Clock } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
 import { exportToExcel } from '../utils/export';
 
 export const Dashboard = () => {
-  const { members, timeSlots, attendance, markAttendance } = useAppContext();
-  const [selectedSlot, setSelectedSlot] = useState('');
+  const { members, timeSlots, attendance, committees } = useAppContext();
 
-  // Auto select the latest timeslot if available
-  useEffect(() => {
-    if (timeSlots.length > 0 && !selectedSlot) {
-      setSelectedSlot(timeSlots[timeSlots.length - 1].id);
-    }
-  }, [timeSlots, selectedSlot]);
+  const stats = useMemo(() => {
+    const totalSessions = timeSlots.length;
+    const totalMembers = members.length;
+    const totalCommittees = committees.length;
+
+    // Calculate overall attendance rate
+    let totalMarks = 0;
+    let presentCount = 0;
+    Object.values(attendance).forEach(slotData => {
+      Object.values(slotData).forEach(status => {
+        totalMarks++;
+        if (status === 'Present') presentCount++;
+      });
+    });
+    const attendanceRate = totalMarks > 0 ? Math.round((presentCount / totalMarks) * 100) : 0;
+
+    return { totalSessions, totalMembers, totalCommittees, attendanceRate };
+  }, [members, timeSlots, attendance, committees]);
+
+  const recentActivity = useMemo(() => {
+    const activities = [];
+    
+    // Show last 3 time slots with attendance summary
+    const recent = [...timeSlots].reverse().slice(0, 5);
+    recent.forEach(slot => {
+      const slotData = attendance[slot.id] || {};
+      const present = Object.values(slotData).filter(s => s === 'Present').length;
+      const total = members.length;
+      activities.push({
+        id: slot.id,
+        label: slot.label,
+        date: slot.date,
+        present,
+        total,
+        percentage: total > 0 ? Math.round((present / total) * 100) : 0,
+      });
+    });
+
+    return activities;
+  }, [timeSlots, attendance, members]);
 
   const handleExport = () => {
     if (members.length === 0 || timeSlots.length === 0) return;
     exportToExcel(members, timeSlots, attendance);
-  };
-
-  const getPresentCount = () => {
-    if (!selectedSlot || !attendance[selectedSlot]) return 0;
-    return Object.values(attendance[selectedSlot]).filter(status => status === 'Present').length;
   };
 
   return (
@@ -29,107 +57,122 @@ export const Dashboard = () => {
       <div className="header-bar">
         <div>
           <h1>Dashboard</h1>
-          <p style={{ color: 'var(--text-muted)' }}>Overview of your committee and attendance.</p>
+          <p>Overview of your E-Cell ecosystem and attendance metrics.</p>
         </div>
         <div className="header-actions">
-          <button className="btn-primary" onClick={handleExport} disabled={timeSlots.length === 0}>
-            <Download size={18} /> Export to Excel
+          <button className="btn-secondary" onClick={handleExport} disabled={timeSlots.length === 0}>
+            <Download size={16} /> Export Report
           </button>
         </div>
       </div>
 
+      {/* Stats Cards */}
       <div className="stats-grid">
-        <div className="glass-panel stat-card">
+        <div className="stat-card animate-fade-in" style={{ animationDelay: '0ms' }}>
           <span className="stat-card-title">Total Members</span>
-          <span className="stat-card-value">{members.length}</span>
+          <span className="stat-card-value">{stats.totalMembers}</span>
           <Users className="stat-card-icon" size={32} />
         </div>
-        <div className="glass-panel stat-card">
-          <span className="stat-card-title">Sessions Generated</span>
-          <span className="stat-card-value">{timeSlots.length}</span>
+        <div className="stat-card animate-fade-in" style={{ animationDelay: '60ms' }}>
+          <span className="stat-card-title">Active Committees</span>
+          <span className="stat-card-value">{stats.totalCommittees}</span>
           <CalendarDays className="stat-card-icon" size={32} />
         </div>
-        <div className="glass-panel stat-card">
-          <span className="stat-card-title">Present in Selected Session</span>
-          <span className="stat-card-value">
-            {timeSlots.length > 0 && selectedSlot ? `${getPresentCount()} / ${members.length}` : '-'}
-          </span>
-          <UserCheck className="stat-card-icon" size={32} />
+        <div className="stat-card animate-fade-in" style={{ animationDelay: '120ms' }}>
+          <span className="stat-card-title">Attendance Rate</span>
+          <span className="stat-card-value">{stats.attendanceRate}%</span>
+          <TrendingUp className="stat-card-icon" size={32} />
         </div>
       </div>
 
-      <div className="glass-panel section-card" style={{ flex: 1 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-          <h2 style={{ fontSize: '1.2rem' }}>Attendance Tracker</h2>
-          
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Select Session:</span>
-            <select 
-              value={selectedSlot} 
-              onChange={(e) => setSelectedSlot(e.target.value)}
-              style={{ width: 'auto' }}
-            >
-              {timeSlots.length === 0 && <option value="">No sessions available</option>}
-              {timeSlots.map(slot => (
-                <option key={slot.id} value={slot.id}>{slot.label} - {slot.date}</option>
-              ))}
-            </select>
+      {/* Quick Overview Grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '1.5rem' }}>
+        
+        {/* Recent Sessions */}
+        <div className="section-card animate-fade-in" style={{ animationDelay: '180ms' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+            <h2><Clock size={18} style={{ color: 'var(--blue-500)' }} /> Recent Sessions</h2>
+            <span className="badge badge-info">{timeSlots.length} total</span>
           </div>
+
+          {recentActivity.length === 0 ? (
+            <div className="empty-state">
+              <CalendarDays size={40} opacity={0.3} />
+              <p>No sessions created yet.</p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              {recentActivity.map(activity => (
+                <div key={activity.id} className="slot-item">
+                  <div className="slot-info">
+                    <span className="slot-label">{activity.label}</span>
+                    <span className="slot-date">
+                      {new Date(activity.date).toLocaleDateString('en-US', {
+                        weekday: 'short', month: 'short', day: 'numeric',
+                      })}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                      <span style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                        {activity.present}/{activity.total}
+                      </span>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>present</span>
+                    </div>
+                    <div style={{
+                      width: '48px', height: '48px',
+                      borderRadius: 'var(--radius-full)',
+                      background: `conic-gradient(var(--blue-500) ${activity.percentage * 3.6}deg, var(--bg-subtle) 0deg)`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      <div style={{
+                        width: '38px', height: '38px',
+                        borderRadius: 'var(--radius-full)',
+                        background: 'var(--bg-panel)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '0.6875rem', fontWeight: 700, color: 'var(--blue-600)',
+                      }}>
+                        {activity.percentage}%
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
-        {timeSlots.length === 0 ? (
-          <div className="empty-state">
-            <CalendarDays size={48} opacity={0.3} />
-            <p>No time slots defined yet.</p>
-            <p style={{ fontSize: '0.9rem' }}>Go to Time Slots tab to create one before tracking attendance.</p>
+        {/* Committees Overview */}
+        <div className="section-card animate-fade-in" style={{ animationDelay: '240ms' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+            <h2><Users size={18} style={{ color: 'var(--blue-500)' }} /> Committees</h2>
+            <span className="badge badge-info">{committees.length} active</span>
           </div>
-        ) : (
-          <div className="data-table-container">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Member Name</th>
-                  <th>Role</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {members.map(member => {
-                  const status = attendance[selectedSlot]?.[member.id] || 'Pending';
-                  
-                  return (
-                    <tr key={member.id}>
-                      <td style={{ fontWeight: 500 }}>{member.name}</td>
-                      <td>{member.role}</td>
-                      <td>
-                        <span className={`badge badge-${status.toLowerCase()}`}>
-                          {status}
-                        </span>
-                      </td>
-                      <td>
-                        <div className="attendance-toggle">
-                          <button 
-                            className={`toggle-btn present ${status === 'Present' ? 'active' : ''}`}
-                            onClick={() => markAttendance(selectedSlot, member.id, 'Present')}
-                          >
-                            Present
-                          </button>
-                          <button 
-                            className={`toggle-btn absent ${status === 'Absent' ? 'active' : ''}`}
-                            onClick={() => markAttendance(selectedSlot, member.id, 'Absent')}
-                          >
-                            Absent
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            {committees.map(committee => (
+              <div key={committee.id} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '0.875rem 1rem',
+                background: 'var(--bg-subtle)',
+                borderRadius: 'var(--radius-md)',
+                transition: 'all var(--transition-fast)',
+              }}>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: '0.9375rem', color: 'var(--text-primary)' }}>
+                    {committee.name}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginTop: '0.125rem' }}>
+                    {committee.description}
+                  </div>
+                </div>
+                <div className="badge badge-neutral">
+                  {committee.members.length} members
+                </div>
+              </div>
+            ))}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
